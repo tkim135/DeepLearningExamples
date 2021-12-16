@@ -1203,9 +1203,7 @@ class GPT2ForPreTraining(GPT2PreTrainedModel):
                                            **kwargs)
         hidden_states = outputs[0]
         lm_logits = self.lm_head(hidden_states)
-        pooled_scores = self.seq_pooler(hidden_states)
-        seq_relationship_logits = self.seq_relationship_head(pooled_scores)
-        return lm_logits, seq_relationship_logits
+        return lm_logits
 
 
 class GPT2DoubleHeadsModel(GPT2PreTrainedModel):

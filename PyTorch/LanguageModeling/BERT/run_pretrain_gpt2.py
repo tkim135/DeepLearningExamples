@@ -100,8 +100,7 @@ class pretraining_dataset(Dataset):
         self.input_file = input_file
         self.max_pred_length = max_pred_length
         f = h5py.File(input_file, "r")
-        keys = ['input_ids', 'input_mask', 'segment_ids', 'masked_lm_positions', 'masked_lm_ids',
-                'next_sentence_labels']
+        keys = ['input_ids', 'input_mask', 'segment_ids', 'masked_lm_positions', 'masked_lm_ids']
         self.inputs = [np.asarray(f[key][:]) for key in keys]
         f.close()
 
@@ -111,7 +110,7 @@ class pretraining_dataset(Dataset):
 
     def __getitem__(self, index):
 
-        [input_ids, input_mask, segment_ids, masked_lm_positions, masked_lm_ids, next_sentence_labels] = [
+        [input_ids, input_mask, segment_ids, masked_lm_positions, masked_lm_ids] = [
             torch.from_numpy(input[index].astype(np.int64)) if indice < 5 else torch.from_numpy(
                 np.asarray(input[index].astype(np.int64))) for indice, input in enumerate(self.inputs)]
 
@@ -124,17 +123,16 @@ class pretraining_dataset(Dataset):
         masked_lm_labels[masked_lm_positions[:index]] = masked_lm_ids[:index]
 
         return [input_ids, segment_ids, input_mask,
-                masked_lm_labels, next_sentence_labels]
+                masked_lm_labels]
 
 class BertPretrainingCriterion(torch.nn.Module):
     def __init__(self, vocab_size):
         super(BertPretrainingCriterion, self).__init__()
         self.loss_fn = torch.nn.CrossEntropyLoss(ignore_index=-1)
         self.vocab_size = vocab_size
-    def forward(self, prediction_scores, seq_relationship_score, masked_lm_labels, next_sentence_labels):
+    def forward(self, prediction_scores, seq_relationship_score, masked_lm_labels):
         masked_lm_loss = self.loss_fn(prediction_scores.view(-1, self.vocab_size), masked_lm_labels.view(-1))
-        next_sentence_loss = self.loss_fn(seq_relationship_score.view(-1, 2), next_sentence_labels.view(-1))
-        return masked_lm_loss, next_sentence_loss
+        return masked_lm_loss
         # total_loss = masked_lm_loss + next_sentence_loss
         # return total_loss
 
@@ -543,7 +541,6 @@ def main():
         most_recent_ckpts_paths = []
         average_loss = 0.0  # averaged loss every args.log_freq steps
         average_mlm = 0.0
-        average_sop = 0.0
         epoch = 0
         training_steps = 0
 
@@ -615,9 +612,9 @@ def main():
 
                     training_steps += 1
                     batch = [t.to(device) for t in batch]
-                    input_ids, segment_ids, input_mask, masked_lm_labels, next_sentence_labels = batch
+                    input_ids, segment_ids, input_mask, masked_lm_labels = batch
                     prediction_scores, seq_relationship_score = model(input_ids=input_ids, token_type_ids=segment_ids, attention_mask=input_mask)
-                    mlm_loss, sop_loss = criterion(prediction_scores, seq_relationship_score, masked_lm_labels, next_sentence_labels)
+                    mlm_loss = criterion(prediction_scores, seq_relationship_score, masked_lm_labels)
                     loss = mlm_loss + sop_loss
                     
                     # loss = criterion(prediction_scores, seq_relationship_score, masked_lm_labels, next_sentence_labels)
@@ -638,7 +635,6 @@ def main():
 
                     average_loss += loss.item()
                     average_mlm += mlm_loss.item()
-                    average_sop += sop_loss.item()
 
                     if training_steps % args.gradient_accumulation_steps == 0:
                         lr_scheduler.step()  # learning rate warmup
@@ -647,8 +643,6 @@ def main():
                             tensorboard.add_scalar("loss/total", loss.item(),
                                                    global_step=global_step)
                             tensorboard.add_scalar("loss/mlm", mlm_loss.item(),
-                                                   global_step=global_step)
-                            tensorboard.add_scalar("loss/sop", sop_loss.item(),
                                                    global_step=global_step)
 
                     if global_step >= args.steps_this_run or timeout_sent:
@@ -669,8 +663,6 @@ def main():
                                                    global_step=global_step)
                             tensorboard.add_scalar("loss/avg_mlm", average_mlm / (args.log_freq * divisor),
                                                    global_step=global_step)
-                            tensorboard.add_scalar("loss/avg_sop", average_sop / (args.log_freq * divisor),
-                                                   global_step=global_step)
                             tensorboard.add_scalar(tag='debug/lr',
                                                    scalar_value=optimizer.param_groups[0]['lr'],
                                                    global_step=global_step)
@@ -679,7 +671,6 @@ def main():
                                                                             "learning_rate": optimizer.param_groups[0]['lr']})
                         average_loss = 0.0
                         average_mlm = 0.0
-                        average_sop = 0.0
 
 
                     if global_step >= args.steps_this_run or training_steps % (
