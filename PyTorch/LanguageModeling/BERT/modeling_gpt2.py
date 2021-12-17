@@ -18,6 +18,7 @@
 import os
 from dataclasses import dataclass
 from typing import Optional, Tuple
+import math
 
 import torch
 import torch.utils.checkpoint
@@ -123,6 +124,13 @@ def load_tf_weights_in_gpt2(model, config, gpt2_checkpoint_path):
         pointer.data = torch.from_numpy(array)
     return model
 
+def gelu_new(x):
+    """
+    Implementation of the GELU activation function currently in Google BERT repo (identical to OpenAI GPT). Also see
+    the Gaussian Error Linear Units paper: https://arxiv.org/abs/1606.08415
+    """
+    return 0.5 * x * (1.0 + torch.tanh(math.sqrt(2.0 / math.pi) * (x + 0.044715 * torch.pow(x, 3.0))))
+
 def gelu(x):
     return x * 0.5 * (1.0 + torch.erf(x / 1.41421))
 
@@ -144,7 +152,7 @@ def swish(x):
     return x * torch.sigmoid(x)
 
 #torch.nn.functional.gelu(x) # Breaks ONNX export
-ACT2FN = {"gelu": gelu, "bias_gelu": bias_gelu, "bias_tanh": bias_tanh, "relu": torch.nn.functional.relu, "swish": swish}
+ACT2FN = {"gelu_new": gelu_new, "gelu": gelu, "bias_gelu": bias_gelu, "bias_tanh": bias_tanh, "relu": torch.nn.functional.relu, "swish": swish}
 
 class Conv1D(nn.Module):
     """
@@ -1159,8 +1167,6 @@ class GPT2ForPreTraining(GPT2PreTrainedModel):
         super(GPT2ForPreTraining, self).__init__(config)
         self.transformer = BiGPT2(config)
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
-        self.seq_pooler = GPT2Pooler(config)
-        self.seq_relationship_head = nn.Linear(config.n_embd, 2)
 
         self.init_weights()
 

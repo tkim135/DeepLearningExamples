@@ -14,35 +14,37 @@
 # limitations under the License.
 
 echo "Container nvidia build = " $NVIDIA_BUILD_ID
-train_batch_size=${1:-128}
-learning_rate=${2:-"1e-4"}
+train_batch_size=${1:-512}
+learning_rate=${2:-"5e-6"}
 beta1=${22:-"0.9"}
 beta2=${23:-"0.999"}
-precision=${3:-"fp16"}
-num_gpus=${4:-8}
+precision=${3:-"fp32"}
+num_gpus=${4:-1}
 warmup_proportion=${5:-"0.0"}
-train_steps=${6:-100000}
-save_checkpoint_steps=${7:-1} # 1 FOR NOW -- FIX!!!!
-resume_training=${8:-"true"}
+train_steps=${6:-20000}
+save_checkpoint_steps=${7:-500}
+resume_training=${8:-"false"}
 resume_step=${21:-"0"}
 create_logfile=${9:-"true"}
 accumulate_gradients=${10:-"true"}
-gradient_accumulation_steps=${11:-8}
+gradient_accumulation_steps=${11:-32}
 seed=${12:-12439}
-job_name=${13:-"wwmmlm_gpt2small_ss512"}
+job_name=${13:-"wwmmlm_gpt2small_ss1024_maxpred160_20k"}
 allreduce_post_accumulation=${14:-"true"}
-allreduce_post_accumulation_fp16=${15:-"true"}
-DATASET=wikienglish_wwm_sop_ss512
+allreduce_post_accumulation_fp16=${15:-"false"}
+DATASET=wikienglish_wwm_ss1024_maxpred160
 init_checkpoint=${17:-"None"}
 master_port=${18:-9903}
-BERT_CONFIG=my_gpt.json
+BERT_CONFIG=gpt2small_mlm.json
 DATASET2=hdf5_lower_case_1_seq_len_512_max_pred_80_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5_shard_1472_test_split_10/books_wiki_en_corpus/training # change this for other datasets
 CODEDIR=${19:-"/workspace/bert"}
 #DATA_DIR_PHASE1=${20:-$BERT_PREP_WORKING_DIR/${DATASET}/}
-RESULTS_DIR=$CODEDIR/results
+DATA_DIR_PHASE1="/import/ml-sc-scratch2/tonyk/wikibooks_wwm_ss1024_maxpred160/hdf5_cont-mlm_lower_case_1_seq_len_1024_max_pred_160_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5_tokenizer_class_gpt2/wikicorpus_books/"
+RESULTS_DIR="results"
 CHECKPOINTS_DIR=$RESULTS_DIR/checkpoints_${job_name}
-steps_this_run=${21:-1}
+steps_this_run=${21:-20000}
 log_freq=${22:-50}
+weight_decay=${23:-0.5}
 
 mkdir -p $CHECKPOINTS_DIR
 
@@ -105,13 +107,13 @@ fi
 
 echo $DATA_DIR_PHASE1
 INPUT_DIR=$DATA_DIR_PHASE1
-CMD=" $CODEDIR/run_pretrain_gpt2.py"
+CMD=" run_pretrain_gpt2.py"
 CMD+=" --input_dir=$DATA_DIR_PHASE1"
 CMD+=" --output_dir=$CHECKPOINTS_DIR"
 CMD+=" --config_file=$BERT_CONFIG"
 CMD+=" --train_batch_size=$train_batch_size"
-CMD+=" --max_seq_length=512"
-CMD+=" --max_predictions_per_seq=80"
+CMD+=" --max_seq_length=1024"
+CMD+=" --max_predictions_per_seq=160"
 CMD+=" --max_steps=$train_steps"
 CMD+=" --warmup_proportion=$warmup_proportion"
 CMD+=" --num_steps_per_checkpoint=$save_checkpoint_steps"
@@ -122,6 +124,7 @@ CMD+=" --beta1=$beta1"
 CMD+=" --beta2=$beta2"
 CMD+=" --seed=$seed"
 CMD+=" --log_freq=$log_freq"
+CMD+=" --weight_decay=$weight_decay"
 CMD+=" $PREC"
 CMD+=" $ACCUMULATE_GRADIENTS"
 CMD+=" $CHECKPOINT"

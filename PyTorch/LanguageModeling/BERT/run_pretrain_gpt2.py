@@ -37,7 +37,6 @@ import math
 from apex import amp
 import multiprocessing
 
-from tokenization import BertTokenizer
 import modeling_gpt2
 from apex.optimizers import FusedLAMB, FusedAdam
 from schedulers import PolyWarmUpScheduler, LinearWarmUpScheduler
@@ -130,7 +129,7 @@ class BertPretrainingCriterion(torch.nn.Module):
         super(BertPretrainingCriterion, self).__init__()
         self.loss_fn = torch.nn.CrossEntropyLoss(ignore_index=-1)
         self.vocab_size = vocab_size
-    def forward(self, prediction_scores, seq_relationship_score, masked_lm_labels):
+    def forward(self, prediction_scores, masked_lm_labels):
         masked_lm_loss = self.loss_fn(prediction_scores.view(-1, self.vocab_size), masked_lm_labels.view(-1))
         return masked_lm_loss
         # total_loss = masked_lm_loss + next_sentence_loss
@@ -184,6 +183,10 @@ def parse_arguments():
                         default=5e-5,
                         type=float,
                         help="The initial learning rate for Adam.")
+    parser.add_argument("--weight_decay",
+                        default=0.01,
+                        type=float,
+                        help="Weight decay.")
     parser.add_argument("--beta1",
                         default=0.9,
                         type=float,
@@ -358,7 +361,8 @@ def prepare_model_and_optimizer(args, device):
     #     config.vocab_size += 8 - (config.vocab_size % 8)
 
     modeling_gpt2.ACT2FN["bias_gelu"] = modeling_gpt2.bias_gelu_training
-    model = modeling_gpt2.GPT2ForPreTraining(config)
+    model = modeling_gpt2.GPT2ForPreTraining.from_pretrained('gpt2')
+    model.resize_token_embeddings(50259)
 
     checkpoint = None
     if not args.resume_from_checkpoint:
@@ -391,7 +395,7 @@ def prepare_model_and_optimizer(args, device):
     no_decay = ['bias', 'gamma', 'beta', 'LayerNorm']
     
     optimizer_grouped_parameters = [
-        {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
+        {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': args.weight_decay},
         {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}]
 
     optimizer = FusedAdam(optimizer_grouped_parameters,
@@ -613,9 +617,9 @@ def main():
                     training_steps += 1
                     batch = [t.to(device) for t in batch]
                     input_ids, segment_ids, input_mask, masked_lm_labels = batch
-                    prediction_scores, seq_relationship_score = model(input_ids=input_ids, token_type_ids=segment_ids, attention_mask=input_mask)
-                    mlm_loss = criterion(prediction_scores, seq_relationship_score, masked_lm_labels)
-                    loss = mlm_loss + sop_loss
+                    prediction_scores = model(input_ids=input_ids, token_type_ids=segment_ids, attention_mask=input_mask)
+                    mlm_loss = criterion(prediction_scores, masked_lm_labels)
+                    loss = mlm_loss
                     
                     # loss = criterion(prediction_scores, seq_relationship_score, masked_lm_labels, next_sentence_labels)
                     if args.n_gpu > 1:
