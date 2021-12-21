@@ -11,6 +11,10 @@ ipdb
 h5py
 nltk
 progressbar
+dataclasses
 #Others
 onnxruntime
 git+https://github.com/NVIDIA/dllogger
+typing-extensions==3.7.4.3
+packaging==20.9
+transformers

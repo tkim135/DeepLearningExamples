@@ -14,12 +14,12 @@
 # limitations under the License.
 
 echo "Container nvidia build = " $NVIDIA_BUILD_ID
-train_batch_size=${1:-512}
+train_batch_size=${1:-128}
 learning_rate=${2:-"0.00015"}
 beta1=${22:-"0.9"}
 beta2=${23:-"0.999"}
-precision=${3:-"fp32"}
-num_gpus=${4:-1}
+precision=${3:-"fp16"}
+num_gpus=${4:-4}
 warmup_proportion=${5:-"0.01"}
 train_steps=${6:-300000}
 save_checkpoint_steps=${7:-5000}
@@ -27,11 +27,11 @@ resume_training=${8:-"false"}
 resume_step=${21:-"0"}
 create_logfile=${9:-"true"}
 accumulate_gradients=${10:-"true"}
-gradient_accumulation_steps=${11:-32}
+gradient_accumulation_steps=${11:-64}
 seed=${12:-12439}
-job_name=${13:-"wwmmlm_gpt2small_ss1024_maxpred320_300k"}
+job_name=${13:-"wwmmlm_gpt2small_ss1024_maxpred320_300k_bs128_fp16"}
 allreduce_post_accumulation=${14:-"true"}
-allreduce_post_accumulation_fp16=${15:-"false"}
+allreduce_post_accumulation_fp16=${15:-"true"}
 DATASET=wikienglish_wwm_ss1024_maxpred320
 init_checkpoint=${17:-"None"}
 master_port=${18:-9903}
@@ -39,12 +39,12 @@ BERT_CONFIG=gpt2small_mlm.json
 DATASET2=hdf5_lower_case_1_seq_len_512_max_pred_80_masked_lm_prob_0.15_random_seed_12345_dupe_factor_5_shard_1472_test_split_10/books_wiki_en_corpus/training # change this for other datasets
 CODEDIR=${19:-"/workspace/bert"}
 #DATA_DIR_PHASE1=${20:-$BERT_PREP_WORKING_DIR/${DATASET}/}
-DATA_DIR_PHASE1="~/data/wikibooks_wwm_ss1024_maxpred320/wikicorpus_books/"
+DATA_DIR_PHASE1=$CODEDIR/wikicorpus_data/wikibooks_wwm_ss1024_maxpred320/wikicorpus_books/
 RESULTS_DIR="results"
 CHECKPOINTS_DIR=$RESULTS_DIR/checkpoints_${job_name}
 steps_this_run=${21:-300000}
-log_freq=${22:-50}
-weight_decay=${23:-0.01}
+log_freq=${22:-1}
+weight_decay=${23:-0.1}
 
 mkdir -p $CHECKPOINTS_DIR
 
