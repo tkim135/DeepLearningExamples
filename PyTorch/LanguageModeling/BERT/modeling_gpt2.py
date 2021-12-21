@@ -337,6 +337,7 @@ class GPT2BiAttention(GPT2Attention):
         #     query_length, key_length = query.size(-2), key.size(-2)
         #     causal_mask = self.bias[:, :, key_length - query_length : key_length, :key_length].bool()
         #     attn_weights = torch.where(causal_mask, attn_weights, self.masked_bias.to(attn_weights.dtype))
+        attn_weights[:,:,:,0] = -10000
 
         if attention_mask is not None:
             # Apply the attention mask

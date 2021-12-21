@@ -27,6 +27,6 @@
       "max_length": 50
     }
   },
-  "vocab_size": 50259,
+  "vocab_size": 50258,
   "scale_attn_weights": true
 }
