@@ -362,18 +362,18 @@ def prepare_model_and_optimizer(args, device):
 
     modeling_gpt2.ACT2FN["bias_gelu"] = modeling_gpt2.bias_gelu_training
     model = modeling_gpt2.GPT2ForPreTraining.from_pretrained('gpt2')
-    model.resize_token_embeddings(50258)
+    model.resize_token_embeddings(50259)
     # average previous embeddings for [MASK] and [CLS]
     # borrowed from https://nlp.stanford.edu/~johnhew/vocab-expansion.html
     params = model.state_dict()
     embeddings = params['transformer.wte.weight']
-    pre_expansion_embeddings = embeddings[:-1,:]
+    pre_expansion_embeddings = embeddings[:-2,:]
     mu = torch.mean(pre_expansion_embeddings, dim=0)
     n = pre_expansion_embeddings.size()[0]
     sigma = ((pre_expansion_embeddings - mu).T @ (pre_expansion_embeddings - mu)) / n
     dist = torch.distributions.multivariate_normal.MultivariateNormal(
         mu, covariance_matrix=1e-5*sigma)
-    new_embeddings = torch.stack(tuple((dist.sample() for _ in range(1))), dim=0)
+    new_embeddings = torch.stack(tuple((dist.sample() for _ in range(2))), dim=0)
     embeddings[-2:,:] = new_embeddings
     params['transformer.wte.weight'][-2:,:] = new_embeddings
     model.load_state_dict(params)
@@ -631,7 +631,7 @@ def main():
                     training_steps += 1
                     batch = [t.to(device) for t in batch]
                     input_ids, segment_ids, input_mask, masked_lm_labels = batch
-                    prediction_scores = model(input_ids=input_ids, token_type_ids=segment_ids, attention_mask=input_mask)
+                    prediction_scores = model(input_ids=input_ids, token_type_ids=None, attention_mask=input_mask)
                     mlm_loss = criterion(prediction_scores, masked_lm_labels)
                     loss = mlm_loss
                     
